@@ -9,7 +9,7 @@ COPY packages/api-client packages/api-client
 COPY apps/web apps/web
 RUN npm run build -w @quantforge/web
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 COPY infrastructure/docker/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080
