@@ -28,3 +28,5 @@ coverage/
 *.parquet
 data/
 **/src/generated/
+test-results/
+playwright-report/

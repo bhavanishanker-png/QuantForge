@@ -1,0 +1,35 @@
+# Install once:  uv tool install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+        exclude: '(openapi\.json|schema\.d\.ts)$'
+      - id: trailing-whitespace
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=500]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^quant-engine/
+      - id: ruff-format
+        files: ^quant-engine/
+  - repo: local
+    hooks:
+      - id: no-session-level-set
+        name: No session-level SET of app.* settings (ADR-002)
+        language: pygrep
+        entry: "(?i)(\\bSET\\s+app\\.|set_config\\(\\s*'app\\.[^']*'\\s*,[^)]*,\\s*false\\s*\\))"
+        files: \.(ts|py|sql)$
+        exclude: ^spikes/
+      - id: oxlint
+        name: oxlint
+        language: system
+        entry: npm run lint --workspaces --if-present
+        pass_filenames: false
+        files: \.(ts|tsx)$

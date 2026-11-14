@@ -29,6 +29,8 @@ Source documents: `completeIdea.txt` (the stack and architecture blueprint, auth
 | 017 | AI runtime and MCP | Proposed | Phase 8 |
 | 018 | Credential encryption key hierarchy | Deferred | Phase 9 |
 | 019 | Open-source license | Deferred | Phase 9 |
+| 020 | Tooling follows framework defaults (Phase 1) | Accepted | — |
+| 021 | Phase 1 implementation decisions | Accepted | — |
 
 ---
 
@@ -365,3 +367,47 @@ workspace has a token and cost budget. Each answer cites the IDs of the records 
 ## ADR-019 — Open-source license
 
 **Status:** Deferred to Phase 9. The options are Apache-2.0 (adoption) or AGPL-3.0 (protection against hosted forks).
+
+## ADR-020 — Tooling follows framework defaults
+
+**Status:** Accepted (2026-11-14, Phase 1)
+
+The stack was chosen before the current major versions were checked. NestJS 12 and Vite 8 now
+scaffold different tools than the stack list names. Fighting the framework scaffolds costs more
+than it gains, so:
+
+| Stack list | Used | Why |
+|---|---|---|
+| Jest + Supertest (API) | **Vitest** + Supertest | NestJS 12 is ESM-only and scaffolds Vitest. Vite 8's transformer emits the decorator metadata Nest's DI needs. |
+| ESLint | **oxlint** (API type-aware, web with react/jsx-a11y/vitest plugins) | Both the NestJS 12 and Vite 8 templates scaffold oxlint. Prettier stays for formatting. |
+| TypeScript | TS 6 (API, per the Nest template), TS 7 (web, per the Vite template) | Each follows its template. |
+| shadcn/ui on Radix | shadcn/ui **base-nova** style on **Base UI** | The current shadcn default. Triggers use the `render` prop instead of `asChild`. |
+
+Notes:
+- `tsx` does **not** emit decorator metadata, so the API always runs from `nest build` output, including the OpenAPI export.
+- `@nest-lab/throttler-storage-redis` does not support NestJS 12, so a small Lua-based `RedisThrottlerStorage` replaces it (`apps/api/src/common/throttler`).
+- npm quirk: the first `npm install -w <pkg>` into a newly added workspace may not save the dependencies to its `package.json`. Re-run it.
+
+## ADR-021 — Phase 1 implementation decisions
+
+**Status:** Accepted (2026-11-14). These were found or decided while building Phase 1.
+
+1. **`qf_definer` role** (NOLOGIN, BYPASSRLS) owns the only two `SECURITY DEFINER` functions:
+   `auth_user_by_email` (login, registration and add-member need a lookup by email before any user
+   context exists) and `app_is_member`. Because of `FORCE ROW LEVEL SECURITY`, functions owned by
+   `qf_migrator` would still be restricted by RLS (spike 1 finding 3). The migration grants `CREATE` on the
+   schema only for the ownership transfer, then revokes it.
+2. **Two RLS context settings:** `app.current_user_id` (users, own memberships, workspaces you belong to) and
+   `app.current_workspace_id` (workspace-owned rows). Both are set transaction-locally by `PrismaService.withContext`.
+3. **`qf_dispatcher` is BYPASSRLS**, with grants limited to `outbox_events` and `background_jobs`. It is a
+   system component that manages jobs across workspaces. It connects directly to Postgres because LISTEN/NOTIFY doesn't work through PgBouncer transaction pooling.
+4. **The outbox wake-up `NOTIFY` is an `AFTER INSERT … FOR EACH STATEMENT` trigger.** It fires at commit, so the app can't forget to send it.
+5. **The outbox payload is `{jobId, workspaceId}`.** Workers set the RLS context from `workspaceId` *before* claiming, so a forged
+   payload naming a job in another workspace claims nothing (covered by `test_forged_payload_with_wrong_workspace_does_nothing`).
+6. **`X-Workspace-Id` is an OpenAPI security scheme**, not a per-operation parameter, so the generated client
+   doesn't force every call to pass it. The web client middleware injects it.
+7. **`POST /auth/logout` is public** and acts on the refresh cookie, so logging out works even after the access token has expired.
+8. **Global guards are HTTP-only.** The JWT and throttler guards skip WebSocket contexts. Sockets authenticate in the gateway handshake, and joining a room checks membership.
+9. **Rate limiting is keyed on the client IP**, with `trust proxy = loopback`. Behind a non-loopback proxy (e.g. Nginx in Compose), set the trusted proxy range explicitly before exposing the stack publicly *(Phase 9 hardening)*.
+10. **The reaper's third rule is implemented:** a QUEUED job whose outbox event was PUBLISHED more than 10 minutes ago without being claimed is re-dispatched.
+11. **Celery Beat is not deployed yet.** There is no scheduled task: the reaper lives in the dispatcher (ADR-005). Beat is added with the first scheduled job (Phase 2 candle sync).

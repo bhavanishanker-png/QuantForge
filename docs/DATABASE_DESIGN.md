@@ -25,7 +25,7 @@ transaction. If a setting is missing, the policy matches nothing. Auth flows tha
 ID exists (register, login, refresh) use narrow `SECURITY DEFINER` functions instead of granting
 broad table access.
 
-Roles: `qf_migrator` (owner), `qf_app`, `qf_worker` (both `NOBYPASSRLS`).
+Roles: `qf_migrator` (owner, still subject to RLS because of FORCE), `qf_app` and `qf_worker` (both `NOBYPASSRLS`), `qf_dispatcher` (BYPASSRLS, outbox and jobs only), and `qf_definer` (NOLOGIN, owns the two SECURITY DEFINER functions). See ADR-021.
 
 ## 3. Phase 1 tables
 
@@ -54,6 +54,7 @@ Roles: `qf_migrator` (owner), `qf_app`, `qf_worker` (both `NOBYPASSRLS`).
 | status | enum | QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED |
 | resource_type / resource_id | text / uuid? | link to the domain row |
 | payload | jsonb | validated against the event schema |
+| result | jsonb? | small job output; large artifacts go to object storage (Phase 4) |
 | progress | numeric(5,2) | 0–100 |
 | attempt / max_attempts | int | default 0 / 3 |
 | cancel_requested | bool | |

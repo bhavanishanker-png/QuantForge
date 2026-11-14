@@ -1,0 +1,150 @@
+name: quantforge
+
+# Local / self-hosted stack (ADR-008).
+#   Full stack:      docker compose up -d --build --wait
+#   Infra only (develop apps on the host): npm run infra:up
+
+x-pg-env: &pg-env
+  QF_MIGRATOR_PASSWORD: ${QF_MIGRATOR_PASSWORD:?set in .env}
+  QF_APP_PASSWORD: ${QF_APP_PASSWORD:?set in .env}
+  QF_WORKER_PASSWORD: ${QF_WORKER_PASSWORD:?set in .env}
+  QF_DISPATCHER_PASSWORD: ${QF_DISPATCHER_PASSWORD:?set in .env}
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      <<: *pg-env
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+    ports: ['127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/10-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d quantforge']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    entrypoint: ['/bin/sh', '/opt/qf/entrypoint.sh']
+    environment: *pg-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ['127.0.0.1:${PGBOUNCER_HOST_PORT:-6432}:6432']
+    volumes:
+      - ./infrastructure/docker/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infrastructure/docker/pgbouncer/entrypoint.sh:/opt/qf/entrypoint.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 6432 || exit 1']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # ADR-006: broker + pub/sub. Must never evict keys.
+  redis-queue:
+    image: redis:7
+    command: ['redis-server', '--maxmemory-policy', 'noeviction', '--appendonly', 'yes', '--appendfsync', 'everysec']
+    ports: ['127.0.0.1:${REDIS_QUEUE_HOST_PORT:-6379}:6379']
+    volumes: [redisqueue:/data]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      retries: 30
+
+  # ADR-006: cache, rate limits, Socket.IO adapter. Evictable, not persisted.
+  redis-cache:
+    image: redis:7
+    command: ['redis-server', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru', '--save', '', '--appendonly', 'no']
+    ports: ['127.0.0.1:${REDIS_CACHE_HOST_PORT:-6380}:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      retries: 30
+
+  # One-shot: applies Prisma migrations directly to Postgres as the owner role, then exits.
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    environment:
+      QF_MIGRATOR_PASSWORD: ${QF_MIGRATOR_PASSWORD}
+      DB_DIRECT_HOST: postgres
+      DB_DIRECT_PORT: '5432'
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_DATABASE_URL: postgresql://qf_app:${QF_APP_PASSWORD}@pgbouncer:6432/quantforge
+      REDIS_QUEUE_URL: redis://redis-queue:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set in .env}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports: ['127.0.0.1:${API_HOST_PORT:-3000}:3000']
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      pgbouncer: { condition: service_healthy }
+      redis-queue: { condition: service_healthy }
+      redis-cache: { condition: service_healthy }
+
+  quant-api:
+    build: ./quant-engine
+    environment: &engine-env
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKER_DATABASE_URL: postgresql://qf_worker:${QF_WORKER_PASSWORD}@pgbouncer:6432/quantforge
+      DISPATCHER_DATABASE_URL: postgresql://qf_dispatcher:${QF_DISPATCHER_PASSWORD}@postgres:5432/quantforge
+      REDIS_QUEUE_URL: redis://redis-queue:6379/0
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set in .env}
+      # ADR-005 timings. Production defaults; the pipeline tests shorten them.
+      HEARTBEAT_EVERY_S: ${HEARTBEAT_EVERY_S:-15}
+      STALE_AFTER_S: ${STALE_AFTER_S:-90}
+      REAPER_EVERY_S: ${REAPER_EVERY_S:-30}
+    # Internal only (ADR-008): published on loopback for local debugging, never on 0.0.0.0.
+    ports: ['127.0.0.1:${QUANT_API_HOST_PORT:-8000}:8000']
+    depends_on: &engine-deps
+      migrate: { condition: service_completed_successfully }
+      pgbouncer: { condition: service_healthy }
+      redis-queue: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      retries: 20
+
+  worker:
+    build: ./quant-engine
+    command: ['celery', '-A', 'workers.celery_app', 'worker', '-Q', 'default', '-c', '2', '--loglevel', 'INFO']
+    environment: *engine-env
+    depends_on: *engine-deps
+    stop_grace_period: 30s
+    healthcheck:
+      test: ['CMD-SHELL', 'celery -A workers.celery_app inspect ping -d celery@$$HOSTNAME --timeout 5 >/dev/null']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  dispatcher:
+    build: ./quant-engine
+    command: ['python', '-m', 'workers.outbox_dispatcher']
+    environment: *engine-env
+    depends_on: *engine-deps
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports: ['127.0.0.1:${WEB_HOST_PORT:-5173}:8080']
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisqueue:

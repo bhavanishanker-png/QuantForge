@@ -1,0 +1,46 @@
+[project]
+name = "quantforge-engine"
+version = "0.1.0"
+description = "QuantForge quantitative engine: FastAPI internal API, Celery workers, outbox dispatcher"
+requires-python = ">=3.12"
+dependencies = [
+  "celery[redis]>=5.5",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "sqlalchemy>=2.0.36",
+  "psycopg[binary]>=3.2",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "python-dotenv>=1.0",
+  "redis>=5",
+  "structlog>=24.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "httpx>=0.28", "ruff>=0.8", "mypy>=1.13", "celery-types>=0.22"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "BLE", "SIM", "RUF"]
+ignore = ["S101"]  # asserts are fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+packages = ["app", "workers"]
+
+[[tool.mypy.overrides]]
+module = ["kombu.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

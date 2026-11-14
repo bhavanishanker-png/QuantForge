@@ -6,7 +6,7 @@ REST over HTTPS, URI-versioned at `/api/v1`. The NestJS-generated OpenAPI spec i
 ## 1. Conventions
 
 - **Auth:** `Authorization: Bearer <access JWT>`. The refresh token travels only in an httpOnly cookie (ADR-007).
-- **Workspace context:** `X-Workspace-Id: <uuid>` is required on every workspace-scoped route. A missing or unauthorized value returns `403 WORKSPACE_FORBIDDEN`, never 404, so the response doesn't reveal whether the workspace exists.
+- **Workspace context:** `X-Workspace-Id: <uuid>` is required on every workspace-scoped route. OpenAPI models it as the `workspace` security scheme (ADR-021). A missing or unauthorized value returns `403 WORKSPACE_FORBIDDEN`, never 404, so the response doesn't reveal whether the workspace exists.
 - **Roles:** routes declare `@Roles(...)`. Defaults: VIEWER can read; DEVELOPER can create and run research; ADMIN manages members; OWNER can delete the workspace and transfer ownership.
 - **JSON:** camelCase fields; ISO-8601 UTC timestamps; **decimals are serialized as strings** (`"123.45000000"`) so JSON never loses precision.
 - **Idempotency:** `POST` routes that create jobs or financial effects accept an `Idempotency-Key` header. A repeat key returns the original response.
@@ -50,7 +50,7 @@ REST over HTTPS, URI-versioned at `/api/v1`. The NestJS-generated OpenAPI spec i
 | POST | `/auth/register` | public | Creates the user and a personal workspace (OWNER) |
 | POST | `/auth/login` | public | Returns `{accessToken, user}` and sets the refresh cookie |
 | POST | `/auth/refresh` | cookie | Rotates the refresh token; reuse revokes the family |
-| POST | `/auth/logout` | auth | Revokes the current family |
+| POST | `/auth/logout` | cookie | Revokes the current family. Public so it works with an expired access token (ADR-021) |
 | GET | `/users/me` | auth | |
 | PATCH | `/users/me` | auth | displayName, preferences |
 | GET | `/workspaces` | auth | The workspaces the caller belongs to (offset pagination) |

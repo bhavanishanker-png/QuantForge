@@ -29,8 +29,20 @@ Scope:
 - App shell: sidebar navigation, dark theme, the Overview page with real empty states
 - CI: ESLint, Prettier, `tsc --strict`, Ruff, mypy, Vitest/Jest, Pytest, an RLS isolation suite and a check for stale generated contracts
 
+**Status (2026-11-14): implemented.** Criteria 1–6 are verified by automated tests (below). Criterion 7 needs the first push to GitHub.
+
+| # | Verified by |
+|---|---|
+| 1 | `./scripts/gen-secrets.sh && docker compose up -d --build --wait`: 9 services healthy, migrations applied |
+| 2 | `apps/api/test/auth.e2e-spec.ts` (9 tests) + Playwright `foundation.spec.ts` (reload keeps the session; sign-out ends it) |
+| 3 | `apps/api/test/rbac.e2e-spec.ts` (7 tests) |
+| 4 | `apps/api/test/isolation.e2e-spec.ts` (19 tests, incl. DB-level checks; a deliberately broken policy makes 3 fail) + `quant-engine/tests/test_jobs.py` (worker RLS, forged payloads) |
+| 5 | `apps/api/test/pipeline.pipeline-spec.ts` + Playwright (job completes live with no reload) |
+| 6 | `pipeline.pipeline-spec.ts`: SIGKILL the worker container mid-job, reaped with zero workers alive, completes on attempt 2 |
+| 7 | `.github/workflows/ci.yml`: **pending the first push** |
+
 **Exit criteria**
-1. `cp .env.example .env && docker compose up` on a clean clone brings every service to healthy.
+1. `./scripts/gen-secrets.sh && docker compose up` on a clean clone brings every service to healthy.
 2. A user can register, log in, refresh the session after the access token expires, and log out. A refresh token presented twice revokes its whole family.
 3. A user can create a workspace and add a member with a role. A Viewer cannot perform a write.
 4. The isolation suite proves that user B cannot read or write workspace A's data through any API route, and that a worker cannot do so without the correct job context.

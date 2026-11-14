@@ -1,0 +1,178 @@
+// Prisma owns the schema and the single migration history (ADR-003).
+// RLS policies, grants and triggers are handwritten SQL appended to migrations.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum OutboxStatus {
+  PENDING
+  CLAIMED
+  PUBLISHED
+  DEAD
+}
+
+model User {
+  id           String    @id @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  displayName  String    @map("display_name")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz
+
+  memberships       WorkspaceMember[]
+  refreshTokens     RefreshToken[]
+  createdWorkspaces Workspace[]       @relation("WorkspaceCreatedBy")
+  createdJobs       BackgroundJob[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  familyId     String    @map("family_id") @db.Uuid
+  tokenHash    Bytes     @unique @map("token_hash")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+  replacedById String?   @unique @map("replaced_by_id") @db.Uuid
+  userAgent    String?   @map("user_agent")
+  ip           String?
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken? @relation("Rotation", fields: [replacedById], references: [id])
+  replaces   RefreshToken? @relation("Rotation")
+
+  @@index([familyId])
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
+}
+
+model Workspace {
+  id        String   @id @db.Uuid
+  name      String
+  slug      String   @unique
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  creator   User              @relation("WorkspaceCreatedBy", fields: [createdBy], references: [id])
+  members   WorkspaceMember[]
+  jobs      BackgroundJob[]
+  auditLogs AuditLog[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  workspaceId String        @map("workspace_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model BackgroundJob {
+  id              String    @id @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  type            String
+  status          JobStatus @default(QUEUED)
+  resourceType    String?   @map("resource_type")
+  resourceId      String?   @map("resource_id") @db.Uuid
+  payload         Json      @default("{}")
+  result          Json?
+  progress        Decimal   @default(0) @db.Decimal(5, 2)
+  attempt         Int       @default(0)
+  maxAttempts     Int       @default(3) @map("max_attempts")
+  cancelRequested Boolean   @default(false) @map("cancel_requested")
+  heartbeatAt     DateTime? @map("heartbeat_at") @db.Timestamptz
+  errorCode       String?   @map("error_code")
+  errorMessage    String?   @map("error_message")
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  startedAt       DateTime? @map("started_at") @db.Timestamptz
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator      User          @relation(fields: [createdBy], references: [id])
+  outboxEvents OutboxEvent[]
+
+  @@index([workspaceId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("background_jobs")
+}
+
+model OutboxEvent {
+  id           String       @id @db.Uuid
+  workspaceId  String       @map("workspace_id") @db.Uuid
+  jobId        String       @map("job_id") @db.Uuid
+  eventType    String       @map("event_type")
+  payload      Json
+  status       OutboxStatus @default(PENDING)
+  attempts     Int          @default(0)
+  availableAt  DateTime     @default(now()) @map("available_at") @db.Timestamptz
+  claimedUntil DateTime?    @map("claimed_until") @db.Timestamptz
+  lastError    String?      @map("last_error")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  publishedAt  DateTime?    @map("published_at") @db.Timestamptz
+
+  job BackgroundJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("outbox_events")
+}
+
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String?  @map("workspace_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  action       String
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  metadata     Json     @default("{}")
+  ip           String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model FeatureFlag {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  rules     Json     @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("feature_flags")
+}

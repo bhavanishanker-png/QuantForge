@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+**/generated
+**/migrations
+*.lock
+package-lock.json
+spikes
+completeIdea.txt
+idea.MD
