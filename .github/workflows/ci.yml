@@ -17,7 +17,7 @@ jobs:
     name: TypeScript (lint, types, unit tests, contract drift)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - run: npm ci
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: quant-engine } }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with: { version: '0.11.32' }
       - run: uv sync --frozen
@@ -53,7 +53,7 @@ jobs:
       STALE_AFTER_S: '5'
       REAPER_EVERY_S: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - uses: astral-sh/setup-uv@v6
