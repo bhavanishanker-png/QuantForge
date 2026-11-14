@@ -1,5 +1,5 @@
 # Build context: repository root (npm workspaces).
-FROM node:24-slim AS build
+FROM node:25-slim AS build
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
@@ -9,7 +9,7 @@ COPY apps/api apps/api
 WORKDIR /repo/apps/api
 RUN npx prisma generate && npm run build
 
-FROM node:24-slim
+FROM node:25-slim
 ENV NODE_ENV=production
 WORKDIR /repo/apps/api
 COPY --from=build /repo/node_modules /repo/node_modules
