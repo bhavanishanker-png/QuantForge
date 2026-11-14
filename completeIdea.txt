@@ -1,0 +1,1013 @@
+# **QuantForge — Complete technology stack and architecture blueprint**
+
+
+
+Technology selection complete
+
+Architecture design
+
+
+
+You've finalized **63 technology and engineering decisions** for QuantForge.
+
+The important architectural direction is to build a local-first, self-hostable quantitative research platform with a modular monolith at its core, a separate Python quantitative engine, and an AI research layer.
+
+We should avoid prematurely splitting everything into microservices. The architecture should be scalable, but also practical for a small development team to build, operate and maintain.
+
+# **1. Final technology stack**
+
+## **A. Application development**
+
+| Category                          | Selected technology                             |
+| --------------------------------- | ----------------------------------------------- |
+| Frontend                          | React + Vite + TypeScript                       |
+| Backend                           | NestJS + TypeScript                             |
+| Quantitative API                  | Python + FastAPI                                |
+| Python dependency management      | uv + uv.lock                                    |
+| Frontend routing                  | React Router                                    |
+| Frontend state                    | Zustand + TanStack Query                        |
+| UI components                     | shadcn/ui + Tailwind CSS                        |
+| Forms and validation              | React Hook Form + Zod                           |
+| Data tables                       | TanStack Table + TanStack Virtual               |
+| Charts                            | TradingView Lightweight Charts + Apache ECharts |
+| API documentation                 | Swagger / OpenAPI                               |
+| Shared frontend/backend contracts | Manually maintained shared TypeScript types     |
+| Code quality                      | Ruff + mypy + ESLint + Prettier                 |
+| Type checking                     | Python mypy + TypeScript strict mode            |
+| Git hooks                         | Pre-commit hooks                                |
+
+## **B. Database and data infrastructure**
+
+| Category                | Selected technology                           |
+| ----------------------- | --------------------------------------------- |
+| Primary database        | PostgreSQL                                    |
+| ORM                     | Prisma                                        |
+| Database migrations     | Prisma Migrate + handwritten SQL              |
+| Python database access  | SQLAlchemy where specialized access is needed |
+| Connection pooling      | PgBouncer                                     |
+| Cache                   | Redis                                         |
+| Historical data         | PostgreSQL partitioning + Parquet             |
+| Object storage          | Local filesystem + MinIO + optional S3        |
+| Experiment tracking     | Custom PostgreSQL + Object Storage            |
+| Financial precision     | Decimal / PostgreSQL NUMERIC                  |
+| Numerical computation   | NumPy Float64                                 |
+| Data processing         | Pandas + NumPy                                |
+| Data validation         | Pydantic + Pandera                            |
+| Database access control | Application authorization + PostgreSQL RLS    |
+| Feature flags           | Custom PostgreSQL-based feature flags         |
+| Backup                  | pgBackRest + Restic                           |
+
+**Important database ownership rule:** Prisma owns the primary PostgreSQL schema and migration history. Python may use SQLAlchemy, but must not introduce a competing Alembic migration history.
+
+## **C. Quantitative and trading infrastructure**
+
+| Category                   | Selected technology                                         |
+| -------------------------- | ----------------------------------------------------------- |
+| Exchange integration       | CCXT                                                        |
+| Live market feeds          | Native exchange WebSockets                                  |
+| Backtesting                | VectorBT                                                    |
+| Parameter optimization     | Scikit-learn GridSearchCV + RandomizedSearchCV              |
+| Indicators                 | TA-Lib + Custom indicators                                  |
+| Strategy development       | Hybrid: built-in + JSON + visual builder + sandboxed Python |
+| Strategy sandboxing        | Isolated Docker containers                                  |
+| Historical datasets        | PostgreSQL + Parquet                                        |
+| Virtual trading            | Custom execution and accounting layer                       |
+| Experiment reproducibility | Immutable strategy, dataset and configuration references    |
+
+## **D. AI and automation**
+
+| Category                   | Selected technology             |
+| -------------------------- | ------------------------------- |
+| AI provider                | Anthropic Claude API            |
+| AI orchestration           | LangGraph                       |
+| Agent communication        | Official TypeScript MCP SDK     |
+| Background jobs            | Redis + Celery                  |
+| Scheduled tasks            | Celery Beat                     |
+| Event reliability          | PostgreSQL Transactional Outbox |
+| Event execution            | Redis + Celery                  |
+| Real-time frontend updates | Socket.IO                       |
+| Socket scaling             | Socket.IO Redis Adapter         |
+| Email                      | Nodemailer + SMTP               |
+
+## **E. Security and reliability**
+
+| Category                 | Selected technology                       |
+| ------------------------ | ----------------------------------------- |
+| Authentication           | Custom JWT + Passport.js                  |
+| Password hashing         | Argon2                                    |
+| Authorization            | Workspace RBAC                            |
+| API rate limiting        | NestJS Throttler + Redis                  |
+| Secrets configuration    | Hybrid typed configuration                |
+| Credential encryption    | Hybrid envelope encryption                |
+| Database isolation       | PostgreSQL RLS + application checks       |
+| Error tracking           | OpenTelemetry + GlitchTip                 |
+| Metrics                  | Prometheus + Grafana                      |
+| Logging                  | Pino + structlog                          |
+| Distributed tracing      | OpenTelemetry                             |
+| API versioning           | URI versioning, starting `/api/v1`        |
+| Pagination               | Offset + Cursor                           |
+| Application caching      | Redis                                     |
+| Audit logging            | PostgreSQL audit events + structured logs |
+| Configuration validation | NestJS ConfigModule + Pydantic Settings   |
+
+## **F. DevOps and deployment**
+
+| Category                  | Selected technology                                                            |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| Containerization          | Docker + Docker Compose                                                        |
+| CI/CD                     | GitHub Actions                                                                 |
+| Container scanning        | Trivy                                                                          |
+| Dependency security       | GitHub Dependabot                                                              |
+| Infrastructure as Code    | Terraform                                                                      |
+| Kubernetes                | K3s + Amazon EKS                                                               |
+| Container registry        | Amazon ECR                                                                     |
+| Reverse proxy / ingress   | Traefik + AWS Load Balancer Controller                                         |
+| TLS                       | cert-manager + AWS Certificate Manager                                         |
+| Deployment                | Helm + Argo CD                                                                 |
+| Frontend serving          | Nginx                                                                          |
+| Testing                   | Vitest, React Testing Library, Playwright, Jest, Supertest, Pytest, Hypothesis |
+| Python package management | uv                                                                             |
+
+# **2. High-level architecture**
+
+The most important architectural decision is to separate application responsibilities from quantitative computation.
+
+I recommend four logical layers:
+
+1. Presentation layer — React frontend.
+2. Application layer — NestJS modular backend.
+3. Quantitative layer — Python engine and workers.
+4. Infrastructure layer — PostgreSQL, Redis, object storage and observability.
+
+## **QuantForge architecture**
+
+**Presentation layer**
+
+## **React + Vite + TypeScript**
+
+Trading dashboard · Strategy Studio · Backtesting · Factor Lab · AI Assistant
+
+REST API · Socket.IO
+
+## **Application layer**
+
+# **NestJS Modular Monolith**
+
+Authentication & Workspaces
+
+Market Data API
+
+Strategy Management
+
+Backtest Management
+
+Optimization Management
+
+Virtual Trading
+
+AI Gateway
+
+MCP Integration
+
+Audit & Feature Flags
+
+Job Management
+
+Internal APIs · Transactional Outbox · Job dispatch
+
+**Quantitative API**
+
+**FastAPI**
+
+Indicators · Strategy validation · Backtest interfaces · Analytics
+
+**Background workers**
+
+**Celery**
+
+Market ingestion · Backtests · Optimization · Scheduled tasks
+
+## **Infrastructure layer**
+
+**PostgreSQL**
+
+Primary database + RLS
+
+**Redis**
+
+Cache + Celery broker
+
+**MinIO / S3**
+
+Research artifacts
+
+**Parquet**
+
+Historical datasets
+
+External integrations
+
+Exchanges via CCXT / WebSockets · Anthropic Claude · SMTP
+
+The diagram represents logical responsibilities, not necessarily separate deployed services. Initially, NestJS can be one deployable application, while the Python engine and Celery workers run separately.
+
+# **3. Detailed component responsibilities**
+
+## **3.1 Frontend —&#x20;**`apps/web`
+
+[Trading Floor Terminal](https://images.openai.com/static-rsc-4/4saqb9jMmMeKM0c2bWwwxGnskGMN2egoaEfYrD3De2x0mT22b180Js-rib5PS9rGPXT8dKCtqT5i9_U5zrU7VcQqmIrH9cTLtm4lhqfR-IRl9hxwIaMJm0QO4RgmbouPqklvbhF54C0DU-L-wc-oDRi6ZBSmRZXSqZECKNX-qG8?purpose=inline)
+
+[terminal.thetradingfloor.io](https://terminal.thetradingfloor.io/?utm_source=chatgpt.com)
+
+Build a professional, dark-first quantitative trading terminal.
+
+**Main navigation**
+
+| Module          | Responsibility                                     |
+| --------------- | -------------------------------------------------- |
+| Overview        | Portfolio metrics, recent activity, active jobs    |
+| Markets         | Instruments, candles, market data and charts       |
+| Strategies      | Create, configure, validate and version strategies |
+| Backtesting     | Run simulations and inspect performance            |
+| Optimization    | Parameter search and experiment comparison         |
+| Factor Lab      | Factor research and statistical evaluation         |
+| Virtual Trading | Simulated accounts, positions and orders           |
+| AI Assistant    | Natural-language research and analysis             |
+| Job Monitor     | Background task progress and history               |
+| Settings        | Users, workspaces, integrations and configuration  |
+
+Frontend engineering rules:
+
+- TanStack Query manages server state.
+- Zustand manages local application state.
+- Socket.IO delivers job and market updates.
+- React Hook Form + Zod validates inputs.
+- TradingView Lightweight Charts handles candlesticks.
+- ECharts handles equity, drawdown, correlation and optimization visualizations.
+- No hardcoded fake dashboard metrics.
+- All modules must have loading, empty, error and success states.
+
+## **3.2 Backend —&#x20;**`apps/api`
+
+NestJS will be the main application backend.
+
+Organize it into independent modules with clear boundaries.
+
+| NestJS module   | Responsibilities                         |
+| --------------- | ---------------------------------------- |
+| Auth            | Registration, login, JWT, refresh tokens |
+| Users           | User profile and preferences             |
+| Workspaces      | Membership, roles and access             |
+| Markets         | Instrument and candle APIs               |
+| Strategies      | Strategy definitions and versions        |
+| Backtests       | Backtest creation and result retrieval   |
+| Optimizations   | Optimization job management              |
+| Factors         | Factor research management               |
+| Virtual Trading | Simulated accounts, orders and positions |
+| AI              | Conversation and agent coordination      |
+| MCP             | MCP server integration and permissions   |
+| Jobs            | Persistent background job management     |
+| Notifications   | Email and application notifications      |
+| Audit           | Append-only business events              |
+| Feature Flags   | Runtime feature availability             |
+
+**Important:** NestJS owns authorization and business workflows. It should not perform expensive backtesting or numerical computation inside HTTP request handlers.
+
+## **3.3 Python quantitative engine —&#x20;**`quant-engine/`
+
+Python owns quantitative computation.
+
+Suggested internal modules:
+
+- `indicators/` — SMA, EMA, RSI, MACD, ADX, ATR, Bollinger Bands, OBV.
+- `strategies/` — strategy interfaces, templates and validation.
+- `backtesting/` — VectorBT integration and simulation.
+- `execution/` — order execution simulation and accounting.
+- `optimization/` — GridSearchCV and RandomizedSearchCV adapters.
+- `analytics/` — performance metrics and statistical evaluation.
+- `factor_lab/` — factor computation and evaluation.
+- `market_data/` — exchange data ingestion and normalization.
+- `validation/` — Pydantic, Pandera and data-quality checks.
+- `api/` — FastAPI endpoints and internal service interfaces.
+
+Python should expose controlled interfaces, not unrestricted execution endpoints.
+
+## **3.4 Background workers**
+
+Celery workers execute tasks that might take seconds or minutes.
+
+| Worker category     | Responsibilities                                   |
+| ------------------- | -------------------------------------------------- |
+| Market data worker  | Historical candle ingestion and synchronization    |
+| Backtest worker     | Execute backtesting jobs                           |
+| Optimization worker | Run parameter searches                             |
+| Factor worker       | Calculate and evaluate factors                     |
+| Maintenance worker  | Cleanup, scheduled maintenance and data validation |
+
+Celery Beat schedules recurring jobs.
+
+The application should persist job state in PostgreSQL:
+
+`QUEUED → RUNNING → COMPLETED / FAILED / CANCELLED`
+
+A worker restart must not silently lose a job or leave it permanently marked as running.
+
+# **4. Critical data and event flows**
+
+This section is particularly important because the technologies must work together correctly.
+
+## **4.1 Backtesting workflow**
+
+1. **User submits a backtest**
+
+   React sends a request to NestJS.
+2. **Authorization and validation**
+
+   NestJS validates workspace access, strategy version, dataset and configuration.
+3. **Persist transaction**
+
+   Create a backtest record and an outbox event in the same PostgreSQL transaction.
+4. **Dispatch job**
+
+   A Python dispatch component reads unpublished outbox events and submits Celery tasks to Redis.
+5. **Execute computation**
+
+   Celery invokes the Python quantitative engine and VectorBT.
+6. **Persist results**
+
+   Save metrics and result metadata in PostgreSQL; save larger artifacts in MinIO/S3.
+7. **Notify frontend**
+
+   Update the persistent job status and publish Socket.IO updates.
+8. **Display report**
+
+   React retrieves actual results and displays the equity curve, trades and performance statistics.
+
+### **Important event-dispatch design**
+
+There is a technical integration detail we should explicitly account for:
+
+NestJS should not be expected to publish Celery's internal task protocol directly.
+
+Instead:
+
+1. NestJS creates the job and outbox record.
+2. A Python dispatcher claims pending outbox events.
+3. The dispatcher publishes the corresponding Celery task.
+4. Workers process tasks idempotently.
+5. PostgreSQL remains the source of truth.
+
+Use leases, retry counters, unique event IDs and dead-letter handling for events that repeatedly fail.
+
+This avoids coupling the TypeScript application to Celery's internal implementation.
+
+## **4.2 Market data workflow**
+
+**Crypto exchanges**
+
+Historical API + Native WebSockets
+
+**CCXT + Exchange Adapters**
+
+**Normalization + Validation**
+
+UTC timestamps · Duplicate detection · Missing candles · Incomplete candles
+
+**PostgreSQL**
+
+Partitioned candle storage
+
+**Parquet**
+
+Research datasets
+
+**Market APIs + WebSocket Gateway**
+
+React charts and research modules
+
+Initial instruments:
+
+- BTC/USDT
+- ETH/USDT
+- SOL/USDT
+
+Initial timeframes:
+
+`1m, 5m, 15m, 30m, 1h, 4h, 1d`
+
+The application must verify exchange support rather than assume every timeframe exists on every exchange.
+
+Incomplete current candles must be distinguishable from finalized historical candles.
+
+## **4.3 AI research workflow**
+
+The AI assistant should be an actual research assistant, not just a chatbot with a QuantForge theme.
+
+**User question**
+
+"Compare my last three BTC strategies."
+
+**LangGraph orchestration**
+
+Intent identification · Context resolution · Authorization · Tool selection
+
+**Anthropic Claude + MCP tools**
+
+Read actual strategies, backtests and experiment results
+
+**QuantForge APIs and data**
+
+Workspace-scoped queries and validated results
+
+**Evidence-based AI response**
+
+Actual metrics · Strategy comparison · Data references · Explanation
+
+The MCP server should expose controlled tools such as:
+
+- `list_market_instruments`
+- `get_market_candles`
+- `list_strategies`
+- `get_strategy_details`
+- `validate_strategy`
+- `create_backtest`
+- `get_backtest_results`
+- `list_optimization_runs`
+- `start_optimization`
+- `get_virtual_account`
+- `get_virtual_positions`
+- `get_factor_results`
+
+Every tool must enforce workspace authorization.
+
+The AI must never invent metrics, bypass permissions, expose secrets or submit live trading orders.
+
+# **5. Quantitative architecture: important correctness rules**
+
+This is the part where I would be especially strict. A trading platform can look impressive while producing misleading backtest results.
+
+## **5.1 Backtesting and execution**
+
+VectorBT is selected for efficient vectorized backtesting. However, vectorization does not automatically guarantee realistic execution simulation.
+
+We should implement a controlled execution and accounting layer around it.
+
+Required rules:
+
+- A signal generated from a completed candle cannot execute at an already-observed closing price.
+- Simulated execution should use the next available executable price.
+- Account for fees and adverse slippage.
+- Use chronological data only.
+- Prevent look-ahead bias.
+- Track balances, positions, fills and realized/unrealized P&L.
+- Make backtests reproducible.
+
+Initial assumptions:
+
+| Setting              | Value         |
+| -------------------- | ------------- |
+| Market               | Crypto spot   |
+| Direction            | Long-only     |
+| Commission           | 0.05%         |
+| Adverse slippage     | 0.05%         |
+| Starting market      | BTC/USDT      |
+| Live order execution | Not supported |
+
+## **5.2 Financial precision**
+
+Use two different numeric approaches for different jobs.
+
+| Use case                 | Numeric representation |
+| ------------------------ | ---------------------- |
+| Balances                 | Decimal / NUMERIC      |
+| Orders and fills         | Decimal / NUMERIC      |
+| Fees                     | Decimal / NUMERIC      |
+| Accounting and P&L       | Decimal / NUMERIC      |
+| Indicators               | NumPy Float64          |
+| Vectorized research      | NumPy Float64          |
+| Statistical calculations | NumPy Float64          |
+
+Conversions between these representations must be explicit.
+
+For virtual trading, financial updates should use database transactions, constraints, idempotency keys and unique fill identifiers.
+
+## **5.3 Optimization correctness**
+
+Scikit-learn SearchCV is selected, but its standard estimators are not directly a strategy-optimization framework.
+
+Create a strategy-evaluation adapter compatible with the SearchCV interface.
+
+Use:
+
+- TimeSeriesSplit or other chronological validation.
+- No shuffled random cross-validation.
+- A separate final holdout dataset.
+- Walk-forward validation.
+- Parameter sensitivity analysis.
+- Transaction-cost stress testing.
+
+Do not select strategies solely because they perform well on the data used to optimize them.
+
+## **5.4 Strategy security**
+
+Custom Python strategy execution must never run inside the NestJS or FastAPI application process.
+
+Use isolated execution containers with:
+
+- Non-root execution.
+- CPU and memory limits.
+- Execution timeouts.
+- Restricted filesystem access.
+- Restricted network access.
+- No application secrets.
+- Explicit input/output schemas.
+
+Docker containers alone should not be treated as a complete security boundary for malicious multi-tenant code. Stronger isolation such as gVisor or Firecracker can be considered later.
+
+# **6. Database architecture**
+
+PostgreSQL will be the primary source of truth.
+
+I recommend organizing the schema around business domains rather than creating one enormous collection of unrelated tables.
+
+## **6.1 Core entities**
+
+| Domain          | Main entities                                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| Identity        | `users`, `refresh_tokens`                                                                          |
+| Workspace       | `workspaces`, `workspace_members`                                                                  |
+| Security        | `audit_logs`, `feature_flags`, `encrypted_credentials`                                             |
+| Market data     | `exchanges`, `instruments`, `market_candles`, `data_sync_jobs`                                     |
+| Strategies      | `strategies`, `strategy_versions`, `strategy_parameters`                                           |
+| Backtesting     | `backtest_runs`, `backtest_trades`, `backtest_equity_points`, `backtest_metrics`                   |
+| Optimization    | `optimization_runs`, `optimization_trials`, `optimization_parameters`                              |
+| Factor Lab      | `factor_definitions`, `factor_evaluations`, `factor_results`, `factor_correlations`                |
+| Virtual trading | `virtual_accounts`, `virtual_orders`, `virtual_fills`, `virtual_positions`, `virtual_transactions` |
+| Jobs            | `background_jobs`, `outbox_events`, `notifications`                                                |
+| AI              | `ai_conversations`, `ai_messages`                                                                  |
+
+## **6.2 Important database rules**
+
+1. Use UUID primary keys.
+2. Use UTC timestamps.
+3. Use NUMERIC for financial values.
+4. Add workspace IDs to workspace-owned records.
+5. Enforce workspace isolation through RLS and application authorization.
+6. Use foreign keys and unique constraints.
+7. Index frequently queried columns.
+8. Partition historical candle data by time.
+9. Keep strategy versions immutable.
+10. Keep completed experiment records reproducible.
+
+### **Backtest reproducibility**
+
+A backtest must preserve:
+
+- Strategy version ID.
+- Dataset ID and checksum.
+- Instrument and timeframe.
+- Start and end dates.
+- Parameter configuration.
+- Initial capital.
+- Commission and slippage.
+- Execution assumptions.
+- Engine version.
+- Metrics, trades and equity curve.
+- Completion status and timestamps.
+
+A user should be able to inspect an old experiment without relying on the current version of their strategy or current market data.
+
+## **6.3 PostgreSQL RLS and PgBouncer**
+
+This deserves special implementation attention.
+
+Since PgBouncer transaction pooling is selected, workspace context must be set inside the database transaction.
+
+For example, use a transaction-local setting:
+
+```
+BEGIN;
+
+SET LOCAL app.current_workspace_id = 'workspace-uuid';
+
+-- Workspace-scoped queries
+
+COMMIT;
+```
+
+The actual application should establish this context using a trusted, validated workspace identity. Never allow a client to choose arbitrary workspace context without authorization.
+
+Prisma integration with transaction-local RLS context and PgBouncer must be tested explicitly. If a particular operation cannot safely preserve the transaction context, it must use an appropriate transaction-aware connection path.
+
+## **6.4 Data storage boundaries**
+
+**PostgreSQL**
+
+Source of truth
+
+- Users and workspaces.
+- Strategies and versions.
+- Orders, fills and balances.
+- Job status.
+- Experiment metadata and metrics.
+
+  **MinIO / S3**
+- Parquet datasets.
+- Large backtest artifacts.
+- Research reports.
+- Optimization outputs.
+
+  **Redis**
+- Cache.
+- Celery broker.
+- Socket.IO adapter.
+- Rate limiting.
+- Temporary coordination data.
+
+Do not store authoritative account balances or completed financial transactions only in Redis.
+
+# **7. Recommended repository structure**
+
+Since we've selected npm Workspaces + uv, I recommend this monorepo layout:
+
+```
+quantforge/
+│
+├── apps/
+│   ├── web/                       # React + Vite
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   ├── components/
+│   │   │   ├── features/
+│   │   │   ├── hooks/
+│   │   │   ├── layouts/
+│   │   │   ├── lib/
+│   │   │   └── routes/
+│   │   └── package.json
+│   │
+│   └── api/                       # NestJS
+│       ├── src/
+│       │   ├── auth/
+│       │   ├── users/
+│       │   ├── workspaces/
+│       │   ├── markets/
+│       │   ├── strategies/
+│       │   ├── backtests/
+│       │   ├── optimizations/
+│       │   ├── factors/
+│       │   ├── virtual-trading/
+│       │   ├── ai/
+│       │   ├── mcp/
+│       │   ├── jobs/
+│       │   ├── audit/
+│       │   └── common/
+│       └── prisma/
+│           └── migrations/
+│
+├── quant-engine/                  # Python
+│   ├── app/
+│   │   ├── api/
+│   │   ├── indicators/
+│   │   ├── strategies/
+│   │   ├── backtesting/
+│   │   ├── execution/
+│   │   ├── optimization/
+│   │   ├── analytics/
+│   │   ├── factor_lab/
+│   │   ├── market_data/
+│   │   └── validation/
+│   │
+│   ├── workers/
+│   │   ├── market_data/
+│   │   ├── quant_jobs/
+│   │   └── outbox_dispatcher/
+│   │
+│   ├── tests/
+│   ├── pyproject.toml
+│   └── uv.lock
+│
+├── mcp-server/                    # TypeScript MCP
+│
+├── packages/
+│   └── shared-types/
+│
+├── infrastructure/
+│   ├── docker/
+│   ├── kubernetes/
+│   ├── helm/
+│   ├── terraform/
+│   └── monitoring/
+│
+├── docs/
+│   ├── PRD.md
+│   ├── ARCHITECTURE.md
+│   ├── DATABASE_DESIGN.md
+│   ├── API_DESIGN.md
+│   ├── DEVELOPMENT_ROADMAP.md
+│   ├── ENGINEERING_DECISIONS.md
+│   └── SECURITY.md
+│
+├── scripts/
+├── docker-compose.yml
+├── package.json
+├── README.md
+├── .env.example
+└── .gitignore
+```
+
+This is the target structure, not a requirement to create every directory immediately. The AI IDE should inspect the existing repository first and adapt this structure rather than overwrite existing work.
+
+# **8. API design**
+
+Use versioned REST endpoints for application workflows.
+
+All endpoints should have consistent validation, authorization, error responses and pagination.
+
+| Module          | Main endpoints                                           |
+| --------------- | -------------------------------------------------------- |
+| Auth            | `/api/v1/auth/register`, `/login`, `/refresh`, `/logout` |
+| Workspaces      | `/api/v1/workspaces`                                     |
+| Markets         | `/api/v1/markets/instruments`, `/candles`, `/sync`       |
+| Strategies      | `/api/v1/strategies`                                     |
+| Backtests       | `/api/v1/backtests`                                      |
+| Optimization    | `/api/v1/optimizations`                                  |
+| Factors         | `/api/v1/factors`                                        |
+| Virtual trading | `/api/v1/virtual-accounts`                               |
+| AI              | `/api/v1/ai/conversations`                               |
+| Jobs            | `/api/v1/jobs`                                           |
+
+For long-running operations, return HTTP `202 Accepted` with a persistent job ID.
+
+Example:
+
+```
+{
+  "jobId": "uuid",
+  "status": "QUEUED",
+  "resourceType": "BACKTEST",
+  "resourceId": "uuid"
+}
+```
+
+Do not keep HTTP requests open while running backtests or optimization searches.
+
+**Pagination policy:**
+
+- Offset pagination for users, workspaces and strategies.
+- Cursor pagination for candles, trades, orders, jobs and equity points.
+- Use stable indexed ordering and composite cursors where needed.
+
+# **9. Deployment architecture**
+
+QuantForge should have two deployment modes sharing as much application code as possible.
+
+[Docker Logo, Icon, and Brand Guidelines](https://images.openai.com/static-rsc-4/e3JNUoCC2I1xaC-d5nwDwFPxo03f4SC-A_dcg0VcYGPSlNBluApjn3F1w4G1SUAHOur3UhwI9-36_T4QL4iPUdCfxf3fErvrYWd7MORRwQKvSETwAdnzA2E4p_0itH6LQDP-73tY3Ko171ZdEUh6VyHwMDIp5eVSVVV5YiV6kfo?purpose=inline)
+
+**Local / self-hosted**
+
+Initial target
+
+- Docker Compose.
+- PostgreSQL.
+- Redis.
+- MinIO.
+- NestJS.
+- Python API and workers.
+- React + Nginx.
+- Monitoring stack.
+
+[Exposing Kubernetes Pods to Internet with AWS Load Balancer Controller on EKS Using LoadBalancer Service and Ingress - DEV Community](https://images.openai.com/static-rsc-4/iVoLkSvprI_p0eoAfq535hyr5ncuVgilUww3jLIA02-SV_4VILOyCb8EuzCNlB69Sq3L_uopTRhb6sW8DTF6mtTRgf5mwfJD3Oe9SCCbuhkH9tGeZilvXyey7NXoy8IXDRPZVIGhXfmit2yxLBET1l9J7TCAYEzy5ffywFIf34k?purpose=inline)
+
+**Managed cloud**
+
+- Amazon EKS.
+- Amazon ECR.
+- Terraform.
+- Helm.
+- Argo CD.
+- AWS Load Balancer Controller.
+- AWS Certificate Manager.
+- AWS Secrets Manager.
+
+### **Deployment progression**
+
+1. Make Docker Compose the default development and self-hosted deployment.
+2. Make services stateless where practical.
+3. Add health checks and graceful shutdown.
+4. Create Helm charts.
+5. Validate K3s deployment.
+6. Deploy to EKS when cloud deployment is needed.
+7. Use GitHub Actions for CI and Argo CD for continuous deployment.
+
+Do not make Terraform, EKS, ECR or AWS a prerequisite for running QuantForge locally.
+
+# **10. Development roadmap**
+
+We should build QuantForge incrementally. The first version should establish a reliable foundation, not attempt to implement the entire quantitative platform in one development cycle.
+
+## **Implementation phases**
+
+1. **Phase 1 — Foundation**
+
+   Start here
+   - Monorepo and project structure.
+   - Docker Compose infrastructure.
+   - React, NestJS and FastAPI skeletons.
+   - PostgreSQL and Redis.
+   - Prisma schema and initial migrations.
+   - Authentication and workspace management.
+   - RBAC and initial RLS policies.
+   - Basic dashboard.
+   - CI, tests and development documentation.
+2. **Phase 2 — Market Data Engine**
+   - Exchange integration.
+   - Historical candle ingestion.
+   - Data normalization and validation.
+   - PostgreSQL candle storage.
+   - Market charts and data synchronization.
+3. **Phase 3 — Strategy Studio**
+   - Built-in strategies.
+   - Strategy configuration and validation.
+   - Strategy versioning.
+   - Controlled strategy execution.
+   - Indicator library.
+4. **Phase 4 — Backtesting Engine**
+   - VectorBT integration.
+   - Execution and accounting simulation.
+   - Fees and slippage.
+   - Performance metrics.
+   - Reproducible backtest reports.
+5. **Phase 5 — Virtual Trading**
+   - Simulated accounts.
+   - Virtual orders and fills.
+   - Positions and P&L.
+   - Atomic balance updates.
+   - Real-time portfolio updates.
+6. **Phase 6 — Strategy Evolution**
+   - Grid and random search.
+   - Chronological validation.
+   - Walk-forward analysis.
+   - Experiment comparison.
+   - Parameter sensitivity.
+7. **Phase 7 — Factor Research Lab**
+   - Technical factors.
+   - Information coefficient.
+   - Factor correlation.
+   - Out-of-sample validation.
+   - Factor stability and statistical testing.
+8. **Phase 8 — AI Research Assistant + MCP**
+   - Claude integration.
+   - LangGraph workflows.
+   - MCP server and tools.
+   - Research queries.
+   - Evidence-based strategy and backtest analysis.
+9. **Phase 9 — Production Readiness**
+   - Full observability.
+   - Security hardening.
+   - Backup and recovery testing.
+   - K3s/EKS deployment.
+   - Performance testing.
+   - Documentation and open-source release preparation.
+
+# **11. Engineering decisions to resolve before implementation**
+
+Although the technology stack is now frozen, some architectural details should be documented as decisions rather than treated as already solved.
+
+| Area               | Decision to document                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| Redis              | Separate logical instances or isolated configurations for Celery, cache and Socket.IO |
+| PgBouncer          | Validate Prisma transaction behavior and RLS context propagation                      |
+| Outbox             | Define leases, retries, duplicate handling and dead-letter policies                   |
+| Celery             | Define queue routing, worker concurrency and task timeouts                            |
+| VectorBT           | Establish a verified execution/accounting adapter                                     |
+| SearchCV           | Define a custom strategy estimator and chronological scoring                          |
+| Encryption         | Define key hierarchy, rotation, backup and recovery                                   |
+| Strategy sandbox   | Define the isolation boundary before enabling arbitrary Python                        |
+| RLS                | Cover application, worker, scheduler and admin access paths                           |
+| Market data        | Define exchange-specific capabilities and incomplete candle handling                  |
+| Experiment storage | Define dataset versioning, checksums and artifact retention                           |
+| Factor research    | Define statistical significance and multiple-testing correction                       |
+
+## **11.1 A few non-negotiable safety and correctness rules**
+
+These should become explicit project requirements:
+
+- No live trading or broker order submission in the initial release.
+- Virtual trading must use simulated accounts only.
+- No API keys or credentials in frontend code.
+- No arbitrary SQL execution through MCP.
+- No unrestricted Python execution inside application services.
+- No fabricated market data or dashboard metrics.
+- No backtest results without recorded execution assumptions.
+- No random train/test splitting for time-series optimization.
+- No financial balances stored only in Redis.
+- No cross-workspace access, including through background workers.
+
+## **11.2 Initial release definition**
+
+The first complete usable QuantForge release should support:
+
+1. Create an account and workspace.
+2. Log in securely.
+3. View BTC/USDT market data.
+4. Synchronize historical candles.
+5. Create a built-in strategy.
+6. Run a historical backtest.
+7. View the equity curve and trades.
+8. Compare strategy configurations.
+9. Create a virtual trading account.
+10. Run a strategy in simulation.
+
+AI research, Factor Lab and advanced strategy evolution can follow once the underlying data and execution foundations are reliable.
+
+# **12. Final architecture decisions**
+
+Here are the architectural principles I recommend treating as fixed for the first release.
+
+| Decision                  | Final direction                                          |
+| ------------------------- | -------------------------------------------------------- |
+| Architecture style        | Modular monolith + separate Python quantitative services |
+| Deployment philosophy     | Local-first, self-hostable, cloud-ready                  |
+| Initial market            | Crypto spot                                              |
+| Initial instrument        | BTC/USDT                                                 |
+| Trading mode              | Historical research + virtual trading                    |
+| Main application database | PostgreSQL                                               |
+| Job execution             | Celery + Redis                                           |
+| Reliable event delivery   | Transactional Outbox                                     |
+| AI                        | Claude + LangGraph                                       |
+| Agent integration         | TypeScript MCP SDK                                       |
+| Financial accounting      | Decimal + PostgreSQL NUMERIC                             |
+| Quantitative computation  | NumPy + Pandas + VectorBT                                |
+| Workspace security        | RBAC + PostgreSQL RLS                                    |
+| Initial deployment        | Docker Compose                                           |
+| Future deployment         | K3s + EKS                                                |
+
+## **13. My assessment of the architecture**
+
+Ready for Phase 1 planning
+
+Stack frozen
+
+The architecture is comprehensive, but I would make three recommendations before implementation:
+
+**1. Don't implement every selected technology immediately.**
+
+For example, you don't need EKS, Argo CD, GlitchTip, AWS KMS and the complete monitoring stack to get your first local development environment running.
+
+Create the interfaces and deployment boundaries where appropriate, then introduce the infrastructure in the relevant phase.
+
+**2. Keep the NestJS application as the source of business authorization.**
+
+The Python engine should calculate, validate and execute quantitative workloads. It should not independently invent business permissions or bypass workspace authorization.
+
+**3. Prioritize correctness over the number of features.**
+
+A trustworthy backtest engine, reliable market data and accurate virtual account accounting are more valuable than having ten incomplete modules.
+
+# **14. Next step: prepare the first AI IDE prompt**
+
+I recommend a two-stage process.
+
+**Stage 1 — Repository inspection and architecture planning**
+
+First prompt
+
+The AI IDE should:
+
+- Inspect the entire existing repository.
+- Identify existing code, dependencies and project structure.
+- Compare the repository with our architecture.
+- Identify technical conflicts and missing pieces.
+- Create the six foundational engineering documents.
+- Propose the detailed Phase 1 implementation plan.
+
+**Stage 2 — Phase 1 implementation**
+
+Same prompt, controlled scope
+
+After planning and documentation, implement only:
+
+- Monorepo foundation.
+- Docker Compose services.
+- React frontend skeleton.
+- NestJS backend skeleton.
+- FastAPI skeleton.
+- PostgreSQL and Prisma.
+- Authentication and workspaces.
+- Initial dashboard.
+- Testing and CI.
+
+It must not start implementing Phase 2 until you approve.
+
+The six documents should be:
+
+1. `PRD.md`
+2. `ARCHITECTURE.md`
+3. `DATABASE_DESIGN.md`
+4. `API_DESIGN.md`
+5. `DEVELOPMENT_ROADMAP.md`
+6. `ENGINEERING_DECISIONS.md`
+
+**My recommendation:** Make the first IDE prompt detailed enough to guide a serious engineering project, but explicitly prohibit it from generating the entire platform in one shot.
+
+The next deliverable should be the complete, copy-paste-ready AI IDE master prompt, incorporating all 63 selections, architecture decisions, security requirements, repository inspection instructions and Phase 1 acceptance criteria.

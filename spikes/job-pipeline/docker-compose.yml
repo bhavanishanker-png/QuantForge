@@ -1,0 +1,36 @@
+name: qf-spike-jobs
+x-engine: &engine
+  build: ./engine
+  environment: &engine-env
+    DATABASE_URL: postgresql://qf_worker:worker_pw@postgres:5432/quantforge
+    REDIS_URL: redis://redis-queue:6379/0
+    # Spike timings are compressed so the failure tests run in seconds.
+    HEARTBEAT_EVERY_S: "1"
+    STALE_AFTER_S: "5"
+    REAPER_EVERY_S: "1"
+    VISIBILITY_TIMEOUT_S: "15"
+    BACKOFF_BASE_S: "0.2"
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis-queue: { condition: service_healthy }
+services:
+  postgres:
+    image: postgres:17
+    environment: { POSTGRES_PASSWORD: postgres }
+    ports: ["55433:5432"]
+    volumes: ["./infra/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres -d quantforge"], interval: 2s, retries: 30 }
+  redis-queue:
+    image: redis:7
+    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports: ["56379:6379"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 2s, retries: 30 }
+  worker:
+    <<: *engine
+    command: ["celery", "-A", "qf_spike.celery_app", "worker", "-Q", "default", "-c", "2", "--loglevel", "INFO"]
+  dispatcher:
+    <<: *engine
+    environment:
+      <<: *engine-env
+      DATABASE_URL: postgresql://qf_dispatcher:dispatcher_pw@postgres:5432/quantforge
+    command: ["python", "-m", "qf_spike.dispatcher"]

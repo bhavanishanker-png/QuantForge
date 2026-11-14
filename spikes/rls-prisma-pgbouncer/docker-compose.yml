@@ -1,0 +1,21 @@
+name: qf-spike-rls
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports: ["55432:5432"]
+    volumes:
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d quantforge"]
+      interval: 2s
+      retries: 30
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["56432:6432"]
+    volumes:
+      - ./infra/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infra/userlist.txt:/etc/pgbouncer/userlist.txt:ro

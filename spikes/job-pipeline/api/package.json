@@ -1,0 +1,8 @@
+{
+  "name": "spike-job-pipeline-api",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "tsx --test --test-concurrency=1 test/*.test.ts" },
+  "dependencies": { "ioredis": "6.0.0", "pg": "8.23.1", "socket.io": "4.8.4" },
+  "devDependencies": { "@types/node": "^24", "@types/pg": "^8", "socket.io-client": "4.8.4", "tsx": "^4", "typescript": "^5" }
+}
